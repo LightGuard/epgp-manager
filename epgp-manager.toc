@@ -1,0 +1,13 @@
+## Interface: 30100
+## Title: epgp-manager
+## Notes: EP/GP Loot System Manager
+## Author: LightGuard of Galaronk
+## Version: 0.1
+## SavedVariables: EPGP_ManagerDB,EPGP_History
+## OptionalDeps: Ace3
+## X-Embeds: Ace3
+## X-Category: Interface Enhancements
+
+#embeds.xml
+
+core.lua
