@@ -1,10 +1,13 @@
 manager = LibStub("AceAddon-3.0"):NewAddon("manager", "AceConsole-3.0", "AceEvent-3.0")
 AceGUI = LibStub("AceGUI-3.0")
 
--- AceGUI 
+local players = {}
+
 do
   local mainFrame
 
+  -- Creates the main loot manager frame
+  -- Called when the master loot frame is opened and mainFrame is nil
   function manager:CreateFrame()
     mainFrame = AceGUI:Create("Frame")
     mainFrame:SetTitle("EPGP Manager")
@@ -14,9 +17,7 @@ do
     mainFrame:SetWidth(600) 
   end
 
-  -- Event Handlers
-  function manager:LOOT_OPENED() 
-    -- How many items are there to loot?
+  function manager:LOOT_OPENED() -- TODO: This should be on master loot
     if (mainFrame == nil) then manager:CreateFrame() end
 
     mainFrame:Show()
@@ -27,53 +28,58 @@ do
     if (lootableItemNum > 0) then
       for i = 1, lootableItemNum do
         local texture, item, quantity, quality, locked = GetLootSlotInfo(i) 
-        local link = select(2, GetItemInfo(item)) 
 
-        tinsert(lootTable, {value = i, text = link, icon = texture})
+        if (quality >= GetLootThreshold()) then
+          tinsert(lootTable, {value = i, text = item, icon = texture})
 
-        local lootTree = AceGUI:Create("TreeGroup")
-        lootTree:SetCallback("OnGroupSelected", function(tree, event, selected)
-          lootTree:ReleaseChildren()
-          local texture, item, quantity, quality, locked = GetLootSlotInfo(selected) 
-          local link = select(2, GetItemInfo(item)) 
-          local actionGroup = AceGUI:Create("InlineGroup")
-          local playersGroup = AceGUI:Create("InlineGroup")
-          local requestRoll = AceGUI:Create("Button")
-          local endRequestRoll = AceGUI:Create("Button")
-          local assignSelected = AceGUI:Create("Button")
-          local itemIcon = AceGUI:Create("Icon")
+          local lootTree = AceGUI:Create("TreeGroup")
+          lootTree:SetCallback("OnGroupSelected", function(tree, event, selected)
+            lootTree:ReleaseChildren()
+            local texture, item, quantity, quality, locked = GetLootSlotInfo(selected) 
+            local link = select(2, GetItemInfo(item)) 
+            local actionGroup = AceGUI:Create("InlineGroup")
+            local playersGroup = AceGUI:Create("InlineGroup")
+            local requestRoll = AceGUI:Create("Button")
+            local endRequestRoll = AceGUI:Create("Button")
+            local assignSelected = AceGUI:Create("Button")
+            local itemIcon = AceGUI:Create("Icon")
 
-          itemIcon:SetImage(texture)
-          itemIcon:SetWidth(250)
-          itemIcon:SetLabel(link)
-          itemIcon:SetCallback("OnEnter", function() 
-            if (LootSlotIsItem(selected)) then
-              GameTooltip:SetOwner(itemIcon.frame, "ANCHOR_RIGHT")
-              GameTooltip:SetLootItem(selected)
-              CursorUpdate(self)
-            end 
+            itemIcon:SetImage(texture)
+            itemIcon:SetWidth(250)
+            itemIcon:SetLabel(link)
+
+            -- Sets the tooltip for the item
+            itemIcon:SetCallback("OnEnter", function() 
+              if (LootSlotIsItem(selected)) then
+                GameTooltip:SetOwner(itemIcon.frame, "ANCHOR_RIGHT")
+                GameTooltip:SetLootItem(selected)
+                CursorUpdate(self)
+              end 
+            end)
+
+            itemIcon:SetCallback("OnLeave", function() GameTooltip:Hide() end) 
+
+            requestRoll:SetText("Start Roll Requests")
+            assignSelected:SetText("Assign to Selected")
+            endRequestRoll:SetText("End Roll Request Accept")
+
+            actionGroup:SetTitle("Loot Actions")
+            actionGroup:SetLayout("Flow") 
+            actionGroup:AddChild(itemIcon)
+            actionGroup:AddChild(requestRoll)
+            actionGroup:AddChild(endRequestRoll)
+            actionGroup:AddChild(assignSelected)
+
+            playersGroup:SetTitle("Players")
+            playersGroup:SetLayout("flow")
+            -- TODO: Add Players
+
+            lootTree:AddChild(actionGroup)
+            lootTree:AddChild(playersGroup)
           end)
-          itemIcon:SetCallback("OnLeave", function() GameTooltip:Hide() end) 
-
-          requestRoll:SetText("Start Roll Requests")
-          assignSelected:SetText("Assign to Selected")
-          endRequestRoll:SetText("End Roll Request Accept")
-
-          actionGroup:SetTitle("Loot Actions")
-          actionGroup:SetLayout("Flow") 
-          actionGroup:AddChild(itemIcon)
-          actionGroup:AddChild(requestRoll)
-          actionGroup:AddChild(endRequestRoll)
-          actionGroup:AddChild(assignSelected)
-
-          playersGroup:SetTitle("Players")
-          playersGroup:SetLayout("flow")
-
-          lootTree:AddChild(actionGroup)
-          lootTree:AddChild(playersGroup)
-        end)
-        lootTree:SetTree(lootTable) 
-        mainFrame:AddChild(lootTree)
+          lootTree:SetTree(lootTable) 
+          mainFrame:AddChild(lootTree)
+        end
       end
     end 
   end
@@ -82,6 +88,23 @@ do
     mainFrame:ReleaseChildren()
     mainFrame:Hide()
   end
+
+  function manager:UpdatePlayers()
+    local numPlayers = #(players)
+    local newNumPlayers = GetNumRaidMembers()
+
+    if (numPlayers ~= newNumPlayers) then
+      -- See if players contains the new player
+      for i = 1, newNumPlayers do
+        local newPlayerName = select(1, GetRaidRosterInfo(i))
+        local containsPlayer = false
+        for key, value in pairs (players) do
+          if (newPlayerName == value.name) then containsPlayer = true end
+        end
+        if (not containsPlayer) then tinsert(players, {name = newPlayerName, index = i}) end
+      end
+    end
+  end
 end
 
 function manager:OnInitialize()
@@ -89,13 +112,16 @@ function manager:OnInitialize()
 end
 
 function manager:OnEnable()
-  -- Called when the addon is enabled
+  -- TODO: These should be for the master loot
   self:RegisterEvent("LOOT_OPENED")
   self:RegisterEvent("LOOT_CLOSED")
+  self:RegisterEvent("PARTY_MEMBERS_CHANGED", "UpdatePlayers")
+  self:RegisterEvent("RAID_ROSTER_UPDATE", "UpdatePlayers")
 end
 
 function manager:OnDisable()
   -- Called when the addon is disabled
+  -- TODO: Save the history and other variables if needed
 end 
 
 -- DEBUG
